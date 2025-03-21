@@ -1,0 +1,320 @@
+// Funzione per aprire il menu personalizzato quando il foglio viene aperto
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Gioco Supply Chain')
+    .addItem('Inizia Gioco', 'startGame')
+    .addToUi();
+}
+
+function startGame() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  // Azzerare tutte le colonne tranne la A
+  var lastColumn = gameDataSheet.getLastColumn(); // Ottieni l'ultima colonna utilizzata
+  var rangeToClear = gameDataSheet.getRange(2, 2, gameDataSheet.getMaxRows(), lastColumn - 1); // Seleziona il range da B a ultima colonna
+  rangeToClear.clearContent(); // Cancella i dati nel range selezionato
+
+  // Inizializza il turno
+  gameDataSheet.getRange("B2").setValue(1); // Inizializza il turno
+
+  // Inizializza stock per tutti i ruoli
+  gameDataSheet.getRange("B3:B6").setValue(500); 
+  // Inizializza backlog per tutti i ruoli
+  gameDataSheet.getRange("B7:B10").setValue(0); 
+  // Inizializza ordini
+  gameDataSheet.getRange("B11:B14").setValue(0); 
+  // Inizializza ordini in arrivo
+  gameDataSheet.getRange("B15:B21").setValue(0); 
+
+ for (var col = 3; col <= lastColumn; col++) {
+    // Imposta il valore delle celle da B in giù nella colonna corrente a 0
+    var rangeToSet = gameDataSheet.getRange(2, col, 23 - 1); // Inizia dalla riga 2
+    rangeToSet.setValue(0);
+  }
+
+  // Mostra il Retailer
+  var ui = SpreadsheetApp.getUi();
+  ui.alert('Benvenuti nel gioco, cliente finale quanta birra vuoi?!');
+  showCustomerDialog();
+}
+// Funzione per aprire la finestra di dialogo per il Cliente Finale
+function showCustomerDialog() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+  var htmlOutput = HtmlService.createHtmlOutputFromFile('CustomerDialog')
+    .setWidth(400)
+    .setHeight(300);
+
+  htmlOutput.append("<script>initialize(" + turno + ");</script>");
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Cliente Finale - Inserisci Fabbisogno');
+}
+
+function updateCustomerNeed(fabbisogno) {
+   var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  // Ottieni il numero del turno corrente
+  var turno = gameDataSheet.getRange("B2").getValue();
+
+  // Calcola la colonna in base al turno (B è la colonna 2)
+  var colonna = turno + 1; // La colonna per il fabbisogno del turno corrente (es. turno 1 => colonna B, turno 2 => colonna C, ecc.)
+
+  // Salva il fabbisogno nella cella corrispondente al turno
+
+  gameDataSheet.getRange(20, colonna + 1).setValue(fabbisogno); // Riga 20, colonna corrispondente al turno
+
+  // Passa al Retailer
+  showRetailerDialog();
+}
+// Funzione per aprire la finestra di dialogo per il Retailer
+function showRetailerDialog() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+   var colonna;
+   var colonna3;
+   var backorerd;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+    backorerd = gameDataSheet.getRange(15, colonna).getValue();
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+    colonna3 = turno +  2;
+    backorerd = gameDataSheet.getRange(15, colonna3).getValue();
+   }
+  var ordineCliente = gameDataSheet.getRange(20, colonna + 1).getValue(); // Fabbisogno per il turno attuale (colonna del turno)
+  var stockRetailer = gameDataSheet.getRange(3, colonna).getValue() + gameDataSheet.getRange(15, colonna).getValue(); // Stock del Retailer dalla colonna precedente (esempio, per turno 2, prendi B3)
+  var backlogRetailer = gameDataSheet.getRange(7, colonna).getValue(); // Backlog del Retailer
+  
+
+  var htmlOutput = HtmlService.createHtmlOutputFromFile('RetailerDialog')
+    .setWidth(500)
+    .setHeight(400);
+
+  htmlOutput.append("<script>initialize(" + turno + ", " + ordineCliente + ", " + stockRetailer + ", " + backlogRetailer + ", " + backorerd +", true);</script>");
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Retailer - Finestra Ordine');
+}
+
+// Funzione per aggiornare l'ordine del Retailer
+// Funzione per aggiornare l'ordine del Retailer
+function updateRetailerOrder(order) {
+ var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue(); // Ottieni il turno corrente
+
+  // Determina la colonna da utilizzare
+  var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+    gameDataSheet.getRange(15, colonna + 2).setValue(order);
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+    colonna2 = turno * 2 + 2; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+    gameDataSheet.getRange(15, colonna2).setValue(order);
+  }
+
+
+  // Recupera i dati dal turno corrispondente
+  var stock =gameDataSheet.getRange(3, colonna).getValue()
+  var stockRetailer = stock + gameDataSheet.getRange(15, colonna).getValue(); // Stock del Retailer
+  var backlogRetailer = gameDataSheet.getRange(7, colonna).getValue(); // Backlog del Retailer
+  var ordineCliente = gameDataSheet.getRange(20, colonna + 1).getValue(); // Fabbisogno del cliente
+
+  // Calcola la quantità non soddisfatta
+  var nonSoddisfatto = Math.max(0, ordineCliente - stockRetailer); // Quantità non soddisfatta
+  backlogRetailer += nonSoddisfatto; // Aggiungi la quantità non soddisfatta al backlog
+
+  // Aggiorna lo stock sottraendo la quantità soddisfatta
+  var stockSoddisfatto = Math.min(ordineCliente, stockRetailer); // Quanto è stato soddisfatto
+  stockRetailer -= stockSoddisfatto; // Aggiorna lo stock
+
+  // Aggiungi i dati del turno nelle colonne corrispondenti
+  gameDataSheet.getRange(3, colonna + 1).setValue(stockRetailer); // Stock aggiornato per il Retailer
+  gameDataSheet.getRange(7, colonna + 1).setValue(backlogRetailer); // Backlog aggiornato per il Retailer
+  gameDataSheet.getRange(11, colonna + 1).setValue(order); // Ordine del Retailer
+ 
+  // Passa al Wholesaler
+  showWholesalerDialog();
+}
+
+
+
+// Funzione per aprire la finestra di dialogo per il Wholesaler
+function showWholesalerDialog() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+   var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+  }
+  var ordineCliente = gameDataSheet.getRange(11, colonna + 1).getValue(); // Fabbisogno per il turno attuale (colonna del turno)
+  var stockWholesaler = gameDataSheet.getRange(4, colonna).getValue(); // Stock del Retailer dalla colonna precedente (esempio, per turno 2, prendi B3)
+  var backlogWholesaler = gameDataSheet.getRange(8, colonna).getValue(); // Backlog del Retailer
+
+  var htmlOutput = HtmlService.createHtmlOutputFromFile('WholesalerDialog')
+    .setWidth(400)
+    .setHeight(300);
+
+  htmlOutput.append("<script>initialize(" + turno + ", " + ordineCliente + ", " + stockWholesaler + ", " + backlogWholesaler + ", true);</script>");
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Wholesaler - Finestra Ordine');
+}
+
+// Funzione per aggiornare l'ordine del Wholesaler
+function updateWholesalerOrder(order) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+  // Determina la colonna da utilizzare
+  var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+  }
+  var stockWholesaler = gameDataSheet.getRange(4, colonna).getValue(); // Stock del Retailer
+  var backlogWholesaler = gameDataSheet.getRange(8, colonna).getValue(); // Backlog del Retailer
+  var ordineCliente = gameDataSheet.getRange(11, colonna + 1).getValue(); // Fabbisogno del cliente
+
+  // Calcola la quantità non soddisfatta (quanto il Retailer non riesce a soddisfare dal suo stock)
+  var nonSoddisfatto = Math.max(0, ordineCliente - stockWholesaler); // Quantità non soddisfatta
+  backlogWholesaler += nonSoddisfatto; // Aggiungi la quantità non soddisfatta al backlog
+
+  // Aggiorna lo stock sottraendo la quantità soddisfatta
+  var stockSoddisfatto = Math.min(ordineCliente, stockWholesaler); // Quanto è stato soddisfatto
+  stockWholesaler -= stockSoddisfatto; // Aggiorna lo stock
+
+  // Aggiungi i dati del turno nelle colonne corrispondenti
+  gameDataSheet.getRange(4, colonna + 1).setValue(stockWholesaler); // Stock aggiornato per il Retailer
+  gameDataSheet.getRange(8, colonna + 1).setValue(backlogWholesaler); // Backlog aggiornato per il Retailer
+  gameDataSheet.getRange(12, colonna + 1).setValue(order); // Ordine del Retailer per il turno
+  // Passa al Distributor
+  showDistributorDialog();
+}
+
+// Funzione per aprire la finestra di dialogo per il Distributor
+function showDistributorDialog() {
+   var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+   var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+  }
+  var ordineCliente = gameDataSheet.getRange(12, colonna + 1).getValue(); // Fabbisogno per il turno attuale (colonna del turno)
+  var stockDistributor = gameDataSheet.getRange(5, colonna).getValue(); // Stock del Retailer dalla colonna precedente (esempio, per turno 2, prendi B3)
+  var backlogDistributor = gameDataSheet.getRange(9, colonna).getValue(); // Backlog del Retailer
+
+  var htmlOutput = HtmlService.createHtmlOutputFromFile('DistributorDialog')
+    .setWidth(400)
+    .setHeight(300);
+
+  htmlOutput.append("<script>initialize(" + turno + ", " + ordineCliente + ", " + stockDistributor + ", " + backlogDistributor + ", true);</script>");
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Distributor - Finestra Ordine');
+}
+
+// Funzione per aggiornare l'ordine del Distributor
+function updateDistributorOrder(order) {
+     var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+  // Determina la colonna da utilizzare
+  var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+  }
+  var stockDistributor = gameDataSheet.getRange(5, colonna).getValue(); // Stock del Retailer
+  var backlogDistributor = gameDataSheet.getRange(9, colonna).getValue(); // Backlog del Retailer
+  var ordineCliente = gameDataSheet.getRange(12, colonna + 1).getValue(); // Fabbisogno del cliente
+
+  // Calcola la quantità non soddisfatta (quanto il Retailer non riesce a soddisfare dal suo stock)
+  var nonSoddisfatto = Math.max(0, ordineCliente - stockDistributor); // Quantità non soddisfatta
+  backlogDistributor += nonSoddisfatto; // Aggiungi la quantità non soddisfatta al backlog
+
+  // Aggiorna lo stock sottraendo la quantità soddisfatta
+  var stockSoddisfatto = Math.min(ordineCliente, stockDistributor); // Quanto è stato soddisfatto
+  stockDistributor -= stockSoddisfatto; // Aggiorna lo stock
+
+  // Aggiungi i dati del turno nelle colonne corrispondenti
+  gameDataSheet.getRange(5, colonna + 1).setValue(stockDistributor); // Stock aggiornato per il Retailer
+  gameDataSheet.getRange(9, colonna + 1).setValue(backlogDistributor); // Backlog aggiornato per il Retailer
+  gameDataSheet.getRange(13, colonna + 1).setValue(order); // Ordine del Retailer per il turno
+  // Passa al Manufacturer
+  showManufacturerDialog();
+}
+
+// Funzione per aprire la finestra di dialogo per il Manufacturer
+function showManufacturerDialog() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+   var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+  }
+  var ordineCliente = gameDataSheet.getRange(13, colonna + 1).getValue(); // Fabbisogno per il turno attuale (colonna del turno)
+  var stockManufacturer = gameDataSheet.getRange(6, colonna).getValue(); // Stock del Retailer dalla colonna precedente (esempio, per turno 2, prendi B3)
+  var backlogManufacturer = gameDataSheet.getRange(10, colonna).getValue(); // Backlog del Retailer
+
+  var htmlOutput = HtmlService.createHtmlOutputFromFile('ManufacturerDialog')
+    .setWidth(400)
+    .setHeight(300);
+
+  htmlOutput.append("<script>initialize(" + turno + ", " + ordineCliente + ", " + stockManufacturer + ", " + backlogManufacturer + ", true);</script>");
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Manufacturer - Finestra Ordine');
+}
+
+// Funzione per aggiornare l'ordine del Manufacturer
+function updateManufacturerOrder(order) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var gameDataSheet = sheet.getSheetByName("Game Data");
+
+  var turno = gameDataSheet.getRange("B2").getValue();
+  // Determina la colonna da utilizzare
+  var colonna;
+  if (turno == 1) {
+    colonna = 2; // Colonna 2 (B) per il primo turno
+  } else {
+    colonna = turno + 1; // Per gli altri turni, la colonna corrisponde al turno (2 -> colonna 3, 3 -> colonna 4, ecc.)
+  }
+  var stockManufacturer = gameDataSheet.getRange(6, colonna).getValue(); // Stock del Retailer
+  var backlogManufacturer = gameDataSheet.getRange(10, colonna).getValue(); // Backlog del Retailer
+  var ordineCliente = gameDataSheet.getRange(13, colonna + 1).getValue(); // Fabbisogno del cliente
+
+  // Calcola la quantità non soddisfatta (quanto il Retailer non riesce a soddisfare dal suo stock)
+  var nonSoddisfatto = Math.max(0, ordineCliente - stockManufacturer); // Quantità non soddisfatta
+  backlogManufacturer += nonSoddisfatto; // Aggiungi la quantità non soddisfatta al backlog
+
+  // Aggiorna lo stock sottraendo la quantità soddisfatta
+  var stockSoddisfatto = Math.min(ordineCliente, stockManufacturer); // Quanto è stato soddisfatto
+  stockManufacturer -= stockSoddisfatto; // Aggiorna lo stock
+
+  // Aggiungi i dati del turno nelle colonne corrispondenti
+  gameDataSheet.getRange(6, colonna + 1).setValue(stockManufacturer); // Stock aggiornato per il Retailer
+  gameDataSheet.getRange(10, colonna + 1).setValue(backlogManufacturer); // Backlog aggiornato per il Retailer
+  gameDataSheet.getRange(14, colonna + 1).setValue(order); // Ordine del Retailer per il turno
+  // Incrementa il turno
+  gameDataSheet.getRange("B2").setValue(turno + 1); 
+  // Passa al Retailer per il nuovo turno
+  showCustomerDialog();
+  
+}
+
